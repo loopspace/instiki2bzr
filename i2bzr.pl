@@ -10,9 +10,12 @@ my $database = "instiki";
 my $host = "localhost";
 my $user = "instiki";
 my $pass = "SVt6GX1rmqWw";
+my $bzrprog = "/usr/bin/bzr";
 
 my $destination = '/var/www/nForge';
 my $htpasswd_file = $destination . '/.htpasswd';
+
+my @webs;
 
 if (!-e $htpasswd_file) {
     open (HTPASSWD, ">$htpasswd_file");
@@ -66,15 +69,17 @@ my $init = $dbh->prepare($initsql);
 $init->execute();
 
 while (my $row = $init->fetchrow_hashref()) {
-    if (!-e $destination . '/'. $row->{'id'}) {
-	mkdir($destination . '/' . $row->{'id'});
+    my $dir = $destination . '/' . $row->{'id'};
+    if (!-e $dir) {
+	mkdir($dir);
+	bzr_init($dir);
     }
     if (!-e $destination . '/'. $row->{'address'}) {
-	symlink($destination . '/' . $row->{'id'},$destination . '/' . $row->{'address'});
+	symlink($dir,$destination . '/' . $row->{'address'});
     }
 
     if ($row->{'password'} && ($row->{'password'} ne '')) {
-	my $htaccess = new Apache::Htaccess($destination . '/' . $row->{'id'} . '/' . '.htaccess');
+	my $htaccess = new Apache::Htaccess($dir . '/' . '.htaccess');
 	$htaccess->directives('AuthType' => 'Basic', 'AuthName' => '"Access to ' . $row->{'name'} . '"', 'AuthUserFile' => $htpasswd_file, 'Require user' => $row->{'name'});
 	$htaccess->save();
 	if (grep($_ eq $row->{'name'}, @htusers)) {
@@ -97,12 +102,22 @@ pages.name
 pages.web_id
 /;
 
+my @metacols = qw/
+id
+name
+author
+updated_at
+ip
+/;
+
 my @datatables = qw/
 pages
 revisions
 /;
 
 my @dataconditions = ("pages.id=revisions.page_id","revisions.id>$lastID");
+
+# Maybe should put a 'LIMIT' statement here - the initial list is quite large!
 
 my $datasql = "SELECT " . join(',',@datacols) . ' FROM ' . join(' JOIN ', @datatables) . ' WHERE ' . join(' AND ', @dataconditions) . ";";
 
@@ -111,22 +126,48 @@ my $data = $dbh->prepare($datasql);
 $data->execute();
 
 while (my $r = $data->fetchrow_hashref()) {
-    my $fileid = $destination . "/" . $r->{'web_id'} . "/" . $r->{'page_id'};
-    my $safename = uri_escape($r->{'name'});
-    my $filename = $destination . "/" . $r->{'web_id'} . "/" . $safename;
-    my $action = (-r $filename ? ' edited ' : ' created ');
-    print "Would now write to " . $fileid . "\n";
-    print "And link it to     " . $safename . "\n";
-    print "Then commit with   " . $r->{'author'} . $action . $r->{'name'} . ' on ' . $r->{'updated_at'} . ' from ' . $r->{'ip'} . "\n";
-#    open(FILE,">" . $fileid)
-#	or die;
-#    print FILE $r{'revisions.content'};
-#    close(FILE);
-#    link($fileid,$filename);
-#    bzr_commit($r{'revisions.author'} . $action . $r{'pages.name'} . ' on ' . $r{'revisions.updated_at'} . ' from ' . $r{'revisions.ip'});
+    my $dir =  $destination . "/" . $r->{'web_id'};
+    my $fileid = $dir  . "/" . $r->{'page_id'};
+    my $new = (-r $fileid ? 0 : 1);
+    open(FILE,">" . $fileid)
+	or die;
+    print FILE $r->{'content'};
+    close(FILE);
+    open(META, ">>" . $fileid . ".meta")
+	or die;
+    print META "---\n";
+    for (my $j = 0; $j < $#metacols; $j++) {
+	print META $metacols[$j] . ": " . $r->{$metacols[$j]} . "\n";
+    }
+    my $action = ' edited ';
+    if ($new) {
+	$action = ' created ';
+	bzr_add($dir,$fileid);
+	bzr_add($dir,$fileid . ".meta");
+    }
+    bzr_commit($dir,$r->{'author'} . $action . $r->{'name'} . ' on ' . $r->{'updated_at'} . ' from ' . $r->{'ip'});
     $lastID = $r->{'id'} if ($r->{'id'} > $lastID);
 }
 
 if (open (CONFIG, ">$config")) {
     print CONFIG "LastRevision = " . $lastID . "\n";
+}
+
+exit;
+
+sub bzr_init {
+    my ($dir) = @_;
+    chdir($dir);
+    system($bzrprog,"init");
+}
+
+sub bzr_add {
+    my ($dir,$file) = @_;
+    system($bzrprog,"add",$file);
+}
+
+sub bzr_commit {
+    my ($dir,$msg) = @_;
+    chdir($dir);
+    system($bzrprog,"commit","-m",$msg);
 }
