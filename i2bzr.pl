@@ -153,6 +153,7 @@ if (open (CONFIG, ">$config")) {
     print CONFIG "LastRevision = " . $lastID . "\n";
 }
 
+$dbh->disconnect;
 exit;
 
 sub bzr_init {
