@@ -113,8 +113,8 @@ ip
 /;
 
 my @datatables = qw/
-pages
 revisions
+pages
 /;
 
 my @dataconditions = ("pages.id=revisions.page_id","revisions.id>$lastID");
@@ -139,7 +139,7 @@ while (my $r = $data->fetchrow_hashref()) {
     open(META, ">>" . $fileid . ".meta")
 	or die;
     print META "---\n";
-    for (my $j = 0; $j < $#metacols; $j++) {
+    for (my $j = 0; $j <= $#metacols; $j++) {
 	print META $metacols[$j] . ": " . $r->{$metacols[$j]} . "\n";
     }
     my $action = ' edited ';
