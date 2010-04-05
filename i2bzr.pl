@@ -6,24 +6,26 @@ use Apache::Htpasswd;
 use Apache::Htaccess;
 use URI::Escape;
 
+# Since we're writing into the www root, make sure we can be read
+umask(022);
+
 my $database = "instiki";
 my $host = "localhost";
 my $user = "instiki";
 my $pass = "SVt6GX1rmqWw";
 my $bzrprog = "/usr/bin/bzr";
-
 my $destination = '/var/www/nForge';
 my $htpasswd_file = $destination . '/.htpasswd';
 
-my @webs;
-
+# Make sure the htpasswd file exists
 if (!-e $htpasswd_file) {
     open (HTPASSWD, ">$htpasswd_file");
     close HTPASSWD;
 }
 
+# Figure out where we're up to in the revision list
 my $config = $ENV{HOME} . '/.i2bzr.cfg';
-my $lastID = 28250;
+my $lastID = 0;
 if (-e $config) {
 if (open (CONFIG, $config)) {
     while (<CONFIG>) {
@@ -118,6 +120,7 @@ revisions
 my @dataconditions = ("pages.id=revisions.page_id","revisions.id>$lastID");
 
 # Maybe should put a 'LIMIT' statement here - the initial list is quite large!
+# Looking at the memory usage, it probably reads in a lot into memory
 
 my $datasql = "SELECT " . join(',',@datacols) . ' FROM ' . join(' JOIN ', @datatables) . ' WHERE ' . join(' AND ', @dataconditions) . ";";
 
