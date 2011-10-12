@@ -119,10 +119,14 @@ pages
 
 my @dataconditions = ("pages.id=revisions.page_id","revisions.id>$lastID");
 
+my @dataorder = qw/
+revisions.id
+/;
+
 # Maybe should put a 'LIMIT' statement here - the initial list is quite large!
 # Looking at the memory usage, it probably reads in a lot into memory
 
-my $datasql = "SELECT " . join(',',@datacols) . ' FROM ' . join(' JOIN ', @datatables) . ' WHERE ' . join(' AND ', @dataconditions) . ";";
+my $datasql = "SELECT " . join(',',@datacols) . ' FROM ' . join(' JOIN ', @datatables) . ' WHERE ' . join(' AND ', @dataconditions) . ' ORDER BY ' . join(',',@dataorder) . ";";
 
 
 my $data = $dbh->prepare($datasql);
